@@ -1,0 +1,9 @@
+TOKEN = "6456769361:AAHNZ0vM6EZWrk-bCYCgs4RHQ5Kb7eLLIV8"
+
+CHANNEL_URL = ""
+CHANNEL_ID = ""
+CHAT_ID = "rptkmovements"
+
+ADMIN_ID = "1042652647"
+
+WORDS = ['бля', 'урод', 'ок']
