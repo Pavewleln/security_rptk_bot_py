@@ -211,7 +211,7 @@ async def mess_handler(message: types.Message):
 
     if not db.mute_bool(message.from_user.id):
         text = message.text.lower()
-        for word in cfg.WORDS:
+        for word in cfg.BAD_WORDS:
             if word in text:
                 await message.delete()
     else:
