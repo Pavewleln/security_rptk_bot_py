@@ -1,6 +1,7 @@
 # -*- coding: utf8 -*-
 import logging
 import time
+import asyncio
 from aiogram import Bot, Dispatcher, executor, types
 from db import Database
 
@@ -20,13 +21,25 @@ async def send_adm(*args, **kwargs):
     await bot.send_message(chat_id=cfg.ADMIN_ID, text='Бот запущен')
 
 
-# Запуск бота в самом боте
+async def send_reply_to_message_and_delete_message(message, text, delay):
+    sent_message = await message.reply_to_message.reply(text)
+    await asyncio.sleep(delay)
+    await sent_message.delete()
+
+
+async def send_reply_and_delete_message(message, text, delay):
+    sent_message = await message.reply(text)
+    await asyncio.sleep(delay)
+    await sent_message.delete()
+
+
+# start
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
     await message.answer("Че нада? :/")
 
 
-# Информация про бота
+# bot_info
 @dp.message_handler(commands=['bot_info'])
 async def welcome_send_info(message: types.Message):
     if str(message.from_user.id) == cfg.ADMIN_ID:
@@ -46,12 +59,13 @@ async def welcome_send_info(message: types.Message):
                              " пользователя над которым проводится действие!\n"
                              f"Бота сделал @dedMefedroniy")
     else:
-        await bot.send_message(f"{message.from_user.username}, че самый(ая) умный(ая) тип?")
+        await send_reply_to_message_and_delete_message(message,
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
         await message.delete()
 
 
-# Приветствие нового участника
-@dp.message_handler(content_types=["new_chat_members"])
+# new_chat_member
+@dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], content_types=["new_chat_members"])
 async def new_chat_member(message: types.Message):
     chat_id = message.chat.id
     await bot.delete_message(chat_id=chat_id, message_id=message.message_id)
@@ -60,7 +74,7 @@ async def new_chat_member(message: types.Message):
                                                  f", Салам Алейкум", parse_mode=types.ParseMode.MARKDOWN)
 
 
-# Информация об пользователе
+# me
 @dp.message_handler(commands=['me'], commands_prefix="/")
 async def welcome(message: types.Message):
     if message.chat.type == types.ChatType.PRIVATE:
@@ -89,49 +103,53 @@ async def welcome(message: types.Message):
         await message.delete()
 
 
-# Замутить
-@dp.message_handler(commands=["mute"], commands_prefix="/")
+# mute
+@dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=["mute"], commands_prefix="/")
 async def mute(message: types.Message):
     if str(message.from_user.id) == cfg.ADMIN_ID:
         if not message.reply_to_message:
-            await message.reply("Эта команда должна быть ответом на сообщение!")
+            await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
 
         if not bool(message.text[6:]):
-            await message.reply("Вы не указали минуты!")
+            await send_reply_and_delete_message(message, "Вы не указали минуты!", 5)
             return
         mute_min = int(message.text[6:])
         db.add_mute(message.reply_to_message.from_user.id, mute_min)
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
-        await message.reply_to_message.reply(
-            f"Пользователь {message.reply_to_message.from_user.username} был замучен на {mute_min} минут(ы)")
+        await send_reply_to_message_and_delete_message(message,
+            f"Пользователь {message.reply_to_message.from_user.username} был замучен на {mute_min} минут(ы)", 5)
     else:
-        await bot.send_message(f"{message.from_user.username}, че самый(ая) умный(ая) тип?")
-        await message.delete()
+        await send_reply_to_message_and_delete_message(message,
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+    await message.delete()
 
 
-# Снять мут
-@dp.message_handler(commands=["unmute"], commands_prefix="/")
+# unmute
+@dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=["unmute"],
+                    commands_prefix="/")
 async def un_mute_user(message: types.Message):
     if str(message.from_user.id) == cfg.ADMIN_ID:
         if not message.reply_to_message:
-            await message.reply("Эта команда должна быть ответом на сообщение!")
+            await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
 
         db.unmute(message.reply_to_message.from_user.id)
-        await message.reply_to_message.reply(
-            f"Пользователь {message.reply_to_message.from_user.username}, теперь можешь писать в чат")
+        await send_reply_to_message_and_delete_message(message,
+                                                       f"Пользователь {message.reply_to_message.from_user.username}, теперь можешь писать в чат",
+                                                       5)
     else:
-        await bot.send_message(f"{message.from_user.username}, че самый(ая) умный(ая) тип?")
-        await message.delete()
+        await send_reply_to_message_and_delete_message(message,
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+    await message.delete()
 
 
-# Забанить пользователя
-@dp.message_handler(commands=['ban'], commands_prefix='/')
+# ban
+@dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=['ban'], commands_prefix='/')
 async def ban(message: types.Message):
     if str(message.from_user.id) == cfg.ADMIN_ID:
         if not message.reply_to_message:
-            await message.reply("Эта команда должна быть ответом на сообщение!")
+            await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
         replied_user = message.reply_to_message.from_user.id
         admin_id = message.from_user.id
@@ -144,11 +162,12 @@ async def ban(message: types.Message):
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
 
     else:
-        await bot.send_message(f"{message.from_user.username}, че самый(ая) умный(ая) тип?")
-        await message.delete()
+        await send_reply_to_message_and_delete_message(message,
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+    await message.delete()
 
 
-# Информация об админах группы
+# admins
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=['admins'],
                     commands_prefix='/')
 async def get_admin_list(message: types.Message):
@@ -161,11 +180,11 @@ async def get_admin_list(message: types.Message):
     await message.reply(msg, parse_mode=types.ParseMode.MARKDOWN)
 
 
-# Оставить жалобу
+# report
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=['report'])
 async def report_by_user(message: types.Message):
     if not message.reply_to_message:
-        await message.reply("Эта команда должна быть ответом на сообщение!")
+        await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
         return
     msg_id = message.reply_to_message.message_id
     user_id = message.from_user.id
@@ -181,7 +200,7 @@ async def report_by_user(message: types.Message):
         except Exception as e:
             logging.debug(f"\nНе получилось отправить жалобу к {admin.user.id}\nError - {e}")
 
-    await message.reply("Жалоба будет рассмотрена админом, спасибо!")
+    await send_reply_to_message_and_delete_message(message, "Жалоба будет рассмотрена админом, спасибо!", 5)
 
 
 # Фильтр сообщений
@@ -195,7 +214,6 @@ async def mess_handler(message: types.Message):
         for word in cfg.WORDS:
             if word in text:
                 await message.delete()
-                print(message.from_user.username)
     else:
         await message.delete()
 
