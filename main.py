@@ -1,36 +1,10 @@
 # -*- coding: utf8 -*-
 import logging
 import time
-import asyncio
-from aiogram import Bot, Dispatcher, executor, types
-from db import Database
-
 import config as cfg
-
-logging.basicConfig(level=logging.INFO)
-
-# Bot configs
-bot = Bot(token=cfg.TOKEN, parse_mode=types.ParseMode.HTML)
-dp = Dispatcher(bot)
-
-db = Database('database.db')
-
-
-# Уведомление об запуске бота
-async def send_adm(*args, **kwargs):
-    await bot.send_message(chat_id=cfg.ADMIN_ID, text='Бот запущен')
-
-
-async def send_reply_to_message_and_delete_message(message, text, delay):
-    sent_message = await message.reply_to_message.reply(text)
-    await asyncio.sleep(delay)
-    await sent_message.delete()
-
-
-async def send_reply_and_delete_message(message, text, delay):
-    sent_message = await message.reply(text)
-    await asyncio.sleep(delay)
-    await sent_message.delete()
+from misc import bot, dp, db
+from aiogram import executor, types
+from helpers import send_adm, send_reply_and_delete_message, send_reply_to_message_and_delete_message
 
 
 # start
@@ -42,25 +16,26 @@ async def start(message: types.Message):
 # bot_info
 @dp.message_handler(commands=['bot_info'])
 async def welcome_send_info(message: types.Message):
-    if str(message.from_user.id) == cfg.ADMIN_ID:
+    if str(message.from_user.id) in cfg.ADMIN_IDS:
         await message.answer(f"{message.from_user.full_name}, привет!\n\n"
-                             f"Это бот модератор, для использования добавьте бота в ваш чат со стандартными разрешениями"
+                             f"Это бот модератор, для использования добавьте бота в ваш чат с разрешениями админа"
                              f" админа, иначе бот не сможет функционировать\n\n"
                              f"Команды для администраторов:\n\n"
-                             f" <code>/ban</code> (reason)- бан пользователя и удаление его из чата\n"
+                             f" <code>/ban</code> - бан пользователя и удаление его из чата\n"
                              f" <code>/mute _m</code> - запретить "
                              f"пользователю отправлять сообщение в чат в указанное время (минуты)\n"
                              f"<code>/unmute</code> - разрешить отправку сообщений\n\n"
                              f"Команды для 'обычных людишек':\n\n"
-                             f" <code>/me</code> (reason)- проверка ваших данных(проверяйте это в самом боте)\n"
-                             f" <code>/admins</code> (reason)- информация об админах этой группы\n"
-                             f" <code>/report</code> (reason)- оставить жалобу на пользователя\n\n"
+                             f" <code>/me</code> - проверка ваших данных(проверяйте это в самом боте)\n"
+                             f" <code>/admins</code> - информация об админах этой группы\n"
+                             f" <code>/report</code> - оставить жалобу на пользователя\n\n"
                              f"❗Все команды (кроме /me и /admins) нужно отправлять ответом на сообщение \n"
                              " пользователя над которым проводится действие!\n"
                              f"Бота сделал @dedMefedroniy")
     else:
         await send_reply_to_message_and_delete_message(message,
-                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?\n"
+                                                       f"(Нет доступа)", 5)
         await message.delete()
 
 
@@ -99,6 +74,7 @@ async def welcome(message: types.Message):
                                     f"ID - <code>{message.from_user.id}</code>\n"
                                     f"Мута нет\n"
                                     f"Username - @{message.from_user.username}\n")
+
     else:
         await message.delete()
 
@@ -106,7 +82,7 @@ async def welcome(message: types.Message):
 # mute
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=["mute"], commands_prefix="/")
 async def mute(message: types.Message):
-    if str(message.from_user.id) == cfg.ADMIN_ID:
+    if str(message.from_user.id) in cfg.ADMIN_IDS:
         if not message.reply_to_message:
             await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
@@ -118,10 +94,13 @@ async def mute(message: types.Message):
         db.add_mute(message.reply_to_message.from_user.id, mute_min)
         await bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
         await send_reply_to_message_and_delete_message(message,
-            f"Пользователь {message.reply_to_message.from_user.username} был замучен на {mute_min} минут(ы)", 5)
+                                                       f"Пользователь {message.reply_to_message.from_user.username}\n"
+                                                       f" был замучен на {mute_min} минут(ы)",
+                                                       5)
     else:
         await send_reply_to_message_and_delete_message(message,
-                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?\n"
+                                                       f"(Нет доступа)", 5)
     await message.delete()
 
 
@@ -129,25 +108,27 @@ async def mute(message: types.Message):
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=["unmute"],
                     commands_prefix="/")
 async def un_mute_user(message: types.Message):
-    if str(message.from_user.id) == cfg.ADMIN_ID:
+    if str(message.from_user.id) in cfg.ADMIN_IDS:
         if not message.reply_to_message:
             await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
 
         db.unmute(message.reply_to_message.from_user.id)
         await send_reply_to_message_and_delete_message(message,
-                                                       f"Пользователь {message.reply_to_message.from_user.username}, теперь можешь писать в чат",
+                                                       f"Пользователь {message.reply_to_message.from_user.username},\n"
+                                                       f" теперь можешь писать в чат",
                                                        5)
     else:
         await send_reply_to_message_and_delete_message(message,
-                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?\n"
+                                                       f"(Нет доступа)", 5)
     await message.delete()
 
 
 # ban
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=['ban'], commands_prefix='/')
 async def ban(message: types.Message):
-    if str(message.from_user.id) == cfg.ADMIN_ID:
+    if str(message.from_user.id) in cfg.ADMIN_IDS:
         if not message.reply_to_message:
             await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
             return
@@ -163,7 +144,8 @@ async def ban(message: types.Message):
 
     else:
         await send_reply_to_message_and_delete_message(message,
-                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?", 5)
+                                                       f"{message.from_user.username}, че самый(ая) умный(ая) тип?\n"
+                                                       f"(Нет доступа)", 5)
     await message.delete()
 
 
@@ -183,6 +165,9 @@ async def get_admin_list(message: types.Message):
 # report
 @dp.message_handler(chat_type=[types.ChatType.SUPERGROUP, types.ChatType.GROUP], commands=['report'])
 async def report_by_user(message: types.Message):
+    if str(message.from_user.id) in cfg.ADMIN_IDS:
+        await send_reply_and_delete_message(message, "Ты админ, не за чем это делать", 5)
+        return
     if not message.reply_to_message:
         await send_reply_and_delete_message(message, "Эта команда должна быть ответом на сообщение!", 5)
         return
